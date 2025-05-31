@@ -3,7 +3,7 @@ import pytest
 import tempfile
 import shutil
 # import struct # For testing merge operator
-from pyrocks import PyRocks, open_database
+from rockstore import RockStore, open_database
 
 @pytest.fixture
 def db_path_factory():
@@ -23,7 +23,7 @@ def db_path(db_path_factory):
 def test_store_basic_operations(db_path):
     """Test basic put/get/delete operations with binary data."""
     # Create a new database
-    db = PyRocks(db_path)
+    db = RockStore(db_path)
     
     # Test putting and getting data
     db.put(b"key1", b"value1")
@@ -41,7 +41,7 @@ def test_store_basic_operations(db_path):
 
 def test_store_string_operations(db_path):
     """Test string operations."""
-    db = PyRocks(db_path)
+    db = RockStore(db_path)
     
     # Test putting and getting string data
     db.put_string("string_key", "string_value")
@@ -63,7 +63,7 @@ def test_store_string_operations(db_path):
 
 def test_get_all(db_path):
     """Test the get_all method."""
-    db = PyRocks(db_path)
+    db = RockStore(db_path)
     
     # Add some data
     db.put(b"key1", b"value1")
@@ -93,7 +93,7 @@ def test_context_manager(db_path):
         assert db.get_string("key1") == "value1"
 
 def test_custom_options_instantiation(db_path_factory):
-    """Test instantiating PyRocks with various custom options."""
+    """Test instantiating RockStore with various custom options."""
     options_list = [
         {"compression_type": "zlib_compression"},
         {"write_buffer_size": 128 * 1024 * 1024},
@@ -103,7 +103,7 @@ def test_custom_options_instantiation(db_path_factory):
     ]
     for i, opts in enumerate(options_list):
         current_db_path = db_path_factory(f"custom_opts_{i}")
-        db = PyRocks(current_db_path, options=opts)
+        db = RockStore(current_db_path, options=opts)
         db.put(b"test", b"opt") # Basic check
         assert db.get(b"test") == b"opt"
         db.close()
@@ -112,12 +112,12 @@ def test_create_if_missing_false(db_path_factory):
     """Test create_if_missing: False specifically."""
     non_existent_path = db_path_factory("non_existent_db")
     with pytest.raises(RuntimeError): # Expect error as DB doesn't exist
-        PyRocks(non_existent_path, options={"create_if_missing": False})
+        RockStore(non_existent_path, options={"create_if_missing": False})
     
     # Create the DB first
-    PyRocks(non_existent_path, options={"create_if_missing": True}).close()
+    RockStore(non_existent_path, options={"create_if_missing": True}).close()
     # Now open with create_if_missing: False should work
-    db = PyRocks(non_existent_path, options={"create_if_missing": False})
+    db = RockStore(non_existent_path, options={"create_if_missing": False})
     db.close()
 
 def test_invalid_options(db_path_factory):
@@ -130,11 +130,11 @@ def test_invalid_options(db_path_factory):
     for i, opts in enumerate(invalid_options_list):
         current_db_path = db_path_factory(f"invalid_opts_{i}")
         with pytest.raises(ValueError):
-            PyRocks(current_db_path, options=opts)
+            RockStore(current_db_path, options=opts)
 
 def test_per_operation_options(db_path):
     """Test per-operation sync and fill_cache options."""
-    db = PyRocks(db_path)
+    db = RockStore(db_path)
     
     # Test put with sync=True
     db.put(b"sync_key", b"sync_value", sync=True)
@@ -158,12 +158,12 @@ def test_per_operation_options(db_path):
 def test_read_only_mode(db_path_factory):
     writable_db_path = db_path_factory("read_only_test_db")
     # Create and populate the database first
-    with PyRocks(writable_db_path) as db:
+    with RockStore(writable_db_path) as db:
         db.put(b"key1", b"value1")
         db.put_string("key2", "value2")
 
     # Open in read-only mode
-    ro_db = PyRocks(writable_db_path, options={"read_only": True})
+    ro_db = RockStore(writable_db_path, options={"read_only": True})
     assert ro_db.get(b"key1") == b"value1"
     assert ro_db.get_string("key2") == "value2"
     
@@ -182,7 +182,7 @@ def test_read_only_mode(db_path_factory):
     # Test opening a non-existent DB in read-only mode (should fail)
     non_existent_ro_path = db_path_factory("non_existent_ro_db")
     with pytest.raises(RuntimeError): # RocksDB open_for_read_only fails if DB doesn't exist
-        PyRocks(non_existent_ro_path, options={"read_only": True})
+        RockStore(non_existent_ro_path, options={"read_only": True})
 
 def test_fixed_prefix_extractor(db_path):
     """Basic test to ensure fixed prefix extractor option doesn't crash."""
@@ -190,7 +190,7 @@ def test_fixed_prefix_extractor(db_path):
     # potentially specific RocksDB metrics, which is complex for a simple unit test.
     # This test mainly ensures the option can be set and the DB operates.
     db_opts = {"fixed_prefix_len": 3, "bloom_filter_bits_per_key":10}
-    with PyRocks(db_path, options=db_opts) as db:
+    with RockStore(db_path, options=db_opts) as db:
         db.put(b"abcKey1", b"val1")
         db.put(b"abckey2", b"val2") # Note: case sensitivity matters for prefix
         db.put(b"xyzKey3", b"val3")
@@ -202,12 +202,12 @@ def test_fixed_prefix_extractor(db_path):
 # We primarily test that these options can be set without errors during DB opening.
 
 def test_increase_parallelism_option(db_path):
-    with PyRocks(db_path, options={"increase_parallelism_threads": 4}) as db:
+    with RockStore(db_path, options={"increase_parallelism_threads": 4}) as db:
         db.put(b"test", b"parallel")
         assert db.get(b"test") == b"parallel"
 
 def test_block_cache_option(db_path):
-    with PyRocks(db_path, options={"block_cache_size_mb": 16}) as db:
+    with RockStore(db_path, options={"block_cache_size_mb": 16}) as db:
         db.put(b"test", b"cache")
         assert db.get(b"test") == b"cache"
     

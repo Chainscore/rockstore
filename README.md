@@ -1,126 +1,201 @@
-# pyrocks
+# RockStore
 
-A Pythonic wrapper for RocksDB using CFFI. This library provides a simple, cross-platform interface to RocksDB without requiring compilation during installation.
+A lightweight Python wrapper for RocksDB using CFFI.
+
+## Overview
+
+RockStore provides a simple, Pythonic interface to RocksDB, Facebook's persistent key-value store. It uses CFFI for efficient native library bindings and supports both binary and string data operations.
 
 ## Features
 
-- Simple key-value operations: `put`, `get`, `delete` (and string variants).
-- Persistent storage with automatic database creation.
-- Context manager (`open_database`) for safe database handling.
-- **Highly Customizable RocksDB Options**:
-  - Read-only mode.
-  - Compression algorithms (Snappy, Zstd, LZ4, etc.).
-  - LRU Block Cache size.
-  - Write buffer size, max open files, block size.
-  - Bloom filters with prefix awareness.
-  - Fixed prefix extractor for performance.
-  - Concurrency tuning with `increase_parallelism_threads`.
-- **Per-operation settings** (sync for writes, fill_cache for reads).
-- Cross-platform compatibility (macOS, Linux, Windows).
-- No C/C++ compiler required for installation (once RocksDB shared library is present).
-
-## Requirements
-
-- **RocksDB Shared Library**: The underlying storage engine must be installed on your system as a shared library.
-  ```bash
-  # macOS
-  brew install rocksdb
-  
-  # Debian/Ubuntu
-  sudo apt-get update && sudo apt-get install -y librocksdb-dev
-  
-  # Fedora/RHEL
-  sudo dnf install -y rocksdb-devel
-  ```
-  The library attempts to find `librocksdb.dylib` (macOS), `librocksdb.so` (Linux), or `rocksdb.dll` (Windows).
+- **Simple API**: Easy-to-use Python interface for RocksDB operations
+- **Binary & String Support**: Work with both raw bytes and UTF-8 strings
+- **Context Manager**: Automatic resource management with `with` statements
+- **Configurable Options**: Customize compression, buffer sizes, and more
+- **Read-Only Mode**: Open databases in read-only mode for safe concurrent access
+- **Cross-Platform**: Works on macOS, Linux, and Windows
 
 ## Installation
 
+### Prerequisites
+
+First, install RocksDB on your system:
+
+**macOS (using Homebrew):**
 ```bash
-pip install pyrocks
+brew install rocksdb
 ```
 
-## Usage Examples
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install librocksdb-dev
+```
 
-### Basic Operations
+**CentOS/RHEL/Fedora:**
+```bash
+sudo yum install rocksdb-devel
+# or for newer versions:
+sudo dnf install rocksdb-devel
+```
+
+**Windows:**
+- Download pre-built RocksDB binaries or build from source
+- Ensure `rocksdb.dll` is in your PATH
+
+### Install RockStore
+
+```bash
+pip install rockstore
+```
+
+## Quick Start
+
+### Basic Usage
 
 ```python
-from pyrocks import PyRocks
+from rockstore import RockStore
 
-db = PyRocks("path/to/my_db")
-db.put(b"key1", b"value1")
-print(db.get(b"key1"))  # Output: b"value1"
-db.delete(b"key1")
+# Open a database
+db = RockStore('/path/to/database')
+
+# Store and retrieve binary data
+db.put(b'key1', b'value1')
+value = db.get(b'key1')
+print(value)  # b'value1'
+
+# Store and retrieve string data
+db.put_string('name', 'Alice')
+name = db.get_string('name')
+print(name)  # 'Alice'
+
+# Delete data
+db.delete_string('name')
+
+# Clean up
 db.close()
 ```
 
-### Using the Context Manager with Custom Options
+### Using Context Manager (Recommended)
 
 ```python
-from pyrocks import open_database
+from rockstore import open_database
 
-db_options = {
-    "read_only": False,
-    "create_if_missing": True,
-    "compression_type": "zstd_compression", 
-    "write_buffer_size": 128 * 1024 * 1024, # 128MB
-    "max_open_files": 2000,
-    "block_cache_size_mb": 256, # 256MB LRU cache
-    "block_size": 16384, # 16KB
-    "bloom_filter_bits_per_key": 10,
-    "fixed_prefix_len": 4, # For keys like user:123, user:456
-    "increase_parallelism_threads": 4
-}
-
-with open_database("path/to/another_db", options=db_options) as db:
-    db.put_string("config:user", "admin")
-    
-    # Per-operation options
-    db.put(b"sensitive_data", b"secret", sync=True) # Sync write
-    config_user = db.get_string("config:user", fill_cache=False) # Read without filling cache
-    print(f"Config user: {config_user}")
+with open_database('/path/to/database') as db:
+    db.put_string('hello', 'world')
+    value = db.get_string('hello')
+    print(value)  # 'world'
+# Database is automatically closed
 ```
 
-### Read-Only Access
+### Getting All Data
 
 ```python
-from pyrocks import PyRocks
-
-# Assuming "path/to/another_db" was created by the example above
-ro_db = PyRocks("path/to/another_db", options={"read_only": True})
-try:
-    print(f"Config user (read-only): {ro_db.get_string('config:user')}")
-    # This would fail:
-    # ro_db.put_string("new_key", "test_write_in_ro_mode") 
-except IOError as e:
-    print(f"Error: {e}")
-finally:
-    ro_db.close()
+with open_database('/path/to/database') as db:
+    db.put(b'key1', b'value1')
+    db.put(b'key2', b'value2')
+    
+    # Get all key-value pairs
+    all_data = db.get_all()
+    for key, value in all_data.items():
+        print(f"{key} -> {value}")
 ```
 
 ## Configuration Options
 
-When creating a `PyRocks` instance or using `open_database`, you can pass an `options` dictionary with the following keys:
+```python
+from rockstore import RockStore
 
-- `read_only` (bool, default: `False`): Open DB in read-only mode. If `True`, write operations will raise `IOError`.
-- `create_if_missing` (bool, default: `True`): If `True` (and not `read_only`), creates the database if it does not exist. Ignored if `read_only` is `True` (RocksDB won't create a DB in read-only mode if it doesn't exist).
-- `compression_type` (str, default: `"snappy_compression"`): 
-  - Options: `"no_compression"`, `"snappy_compression"`, `"zlib_compression"`, `"bz2_compression"`, `"lz4_compression"`, `"lz4hc_compression"`, `"zstd_compression"`.
-- `write_buffer_size` (int, default: `67108864` (64MB)): Size in bytes for memtable.
-- `max_open_files` (int, default: `1000`): Maximum number of open files. Use `-1` for infinity (RocksDB default).
-- `block_size` (int, default: `4096` (4KB)): Size in bytes for data blocks in SST files.
-- `block_cache_size_mb` (int, default: `8`): Size in MB for the LRU block cache. If `0`, RocksDB uses its default (usually small) internal cache. A larger cache can significantly improve read performance.
-- `bloom_filter_bits_per_key` (int, default: `10`): Bits per key for Bloom filter. Reduces disk reads for non-existent keys. Set to `0` to disable. Usually effective with a prefix extractor.
-- `increase_parallelism_threads` (int, default: `0`): If greater than `0`, calls `rocksdb_options_increase_parallelism()` to optimize for concurrency.
-- `fixed_prefix_len` (int, default: `0`): If greater than `0`, configures a fixed-size prefix extractor. Improves performance for prefix-based lookups and range scans.
+# Create database with custom options
+options = {
+    'create_if_missing': True,
+    'compression_type': 'lz4_compression',
+    'write_buffer_size': 64 * 1024 * 1024,  # 64MB
+    'max_open_files': 1000
+}
 
-## Per-Operation Options
+db = RockStore('/path/to/database', options=options)
+```
 
-- `put()` / `put_string()` / `delete()` / `delete_string()`:
-  - `sync` (bool, default: `False`): If `True`, force a sync to disk for this write operation, ensuring durability at the cost of performance.
-- `get()` / `get_string()` / `get_all()`:
-  - `fill_cache` (bool, default: `True`): If `True` (the default), this read operation will attempt to fill the block cache with data it reads from disk.
+### Available Options
+
+- `create_if_missing` (bool): Create database if it doesn't exist (default: True)
+- `read_only` (bool): Open database in read-only mode (default: False)
+- `compression_type` (str): Compression algorithm - 'no_compression', 'snappy_compression', 'zlib_compression', 'bz2_compression', 'lz4_compression', 'lz4hc_compression', 'xpress_compression', 'zstd_compression' (default: 'snappy_compression')
+- `write_buffer_size` (int): Write buffer size in bytes (default: 64MB)
+- `max_open_files` (int): Maximum number of open files (default: 1000)
+
+### Per-Operation Options
+
+```python
+# Synchronous write (forces immediate disk write)
+db.put(b'key', b'value', sync=True)
+
+# Read without caching
+value = db.get(b'key', fill_cache=False)
+
+# Synchronous delete
+db.delete(b'key', sync=True)
+```
+
+## API Reference
+
+### RockStore Class
+
+#### Constructor
+```python
+RockStore(path, options=None)
+```
+
+#### Methods
+
+**Binary Operations:**
+- `put(key: bytes, value: bytes, sync: bool = False)` - Store binary data
+- `get(key: bytes, fill_cache: bool = True) -> bytes | None` - Retrieve binary data
+- `delete(key: bytes, sync: bool = False)` - Delete binary data
+
+**String Operations:**
+- `put_string(key: str, value: str, sync: bool = False)` - Store string data
+- `get_string(key: str, fill_cache: bool = True) -> str | None` - Retrieve string data
+- `delete_string(key: str, sync: bool = False)` - Delete string data
+
+**Bulk Operations:**
+- `get_all(fill_cache: bool = True) -> dict[bytes, bytes]` - Get all key-value pairs
+
+**Resource Management:**
+- `close()` - Close the database
+- Context manager support (`with` statement)
+
+### Context Manager
+
+```python
+open_database(path, options=None) -> RockStore
+```
+
+## Requirements
+
+- Python 3.8+
+- CFFI >= 1.15.0
+- RocksDB library installed on system
+
+## Development
+
+### Running Tests
+
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run with coverage
+pytest --cov=rockstore
+```
 
 ## License
 
-MIT 
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. 

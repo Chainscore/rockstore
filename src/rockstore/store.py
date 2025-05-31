@@ -2,9 +2,12 @@ import os
 import platform
 from cffi import FFI
 
-class PyRocks:
+class RockStore:
     """
-    Key-Value Store using RocksDB
+    A simple Python wrapper for RocksDB using CFFI.
+    
+    This class provides a high-level interface to RocksDB operations with support
+    for both binary and string data, customizable options, and read-only mode.
     
     Args:
         path (str): The path to the database file.
@@ -25,17 +28,18 @@ class PyRocks:
 
     Example:
         >>> db_options = {
-        ...     "compression_type": "zstd_compression", 
-        ...     "write_buffer_size": 128 * 1024 * 1024
+        ...     "create_if_missing": True,
+        ...     "compression_type": "lz4_compression",
+        ...     "write_buffer_size": 64 * 1024 * 1024  # 64MB
         ... }
-        >>> db = PyRocks("my_rocks_db", options=db_options)
-        >>> db.put(b"key1", b"value1")
-        >>> # ... operations ...
+        >>> db = RockStore("my_rocks_db", options=db_options)
+        >>> db.put_string("key1", "value1")
+        >>> print(db.get_string("key1"))  # Output: value1
         >>> db.close()
 
-        >>> # Read-only example
-        >>> ro_db = PyRocks("my_rocks_db", options={"read_only": True})
-        >>> print(ro_db.get(b"key1"))
+        # For read-only access:
+        >>> ro_db = RockStore("my_rocks_db", options={"read_only": True})
+        >>> print(ro_db.get_string("key1"))  # Output: value1
         >>> ro_db.close()
     """
     NO_COMPRESSION = 0

@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "cffi>=1.15.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyrocks"
+name = "rockstore"
 version = "0.1.0"
-description = "A Pythonic wrapper for RocksDB using CFFI"
+description = "A lightweight Python wrapper for RocksDB using CFFI"
 readme = "README.md"
 authors = [
     {name = "Prasad Kumkar", email = "prasad@chainscore.finance"},
@@ -21,26 +21,36 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Database",
-    "Topic :: Software Development :: Libraries"
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-keywords = ["rocksdb", "database", "key-value", "storage", "cffi"]
+keywords = ["rocksdb", "database", "key-value", "cffi", "embedded"]
 dependencies = [
     "cffi>=1.15.0",
 ]
 requires-python = ">=3.8"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-benchmark>=4.0.0",
+]
+
 [project.urls]
-Homepage = "https://github.com/chainscore/pyrocks"
-Documentation = "https://github.com/chainscore/pyrocks#readme"
-Repository = "https://github.com/chainscore/pyrocks.git"
-"Bug Tracker" = "https://github.com/chainscore/pyrocks/issues"
+Homepage = "https://github.com/chainscore/rockstore"
+Documentation = "https://github.com/chainscore/rockstore#readme"
+Repository = "https://github.com/chainscore/rockstore"
+"Bug Tracker" = "https://github.com/chainscore/rockstore/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-pyrocks = ["py.typed"]
+rockstore = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
