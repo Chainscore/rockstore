@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyrocks"
+version = "0.1.0"
+description = "A Pythonic wrapper for RocksDB using CFFI"
+readme = "README.md"
+authors = [
+    {name = "Prasad Kumkar", email = "prasad@chainscore.finance"},
+    {name = "Chainscore Labs", email = "hello@chainscore.finance"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries"
+]
+keywords = ["rocksdb", "database", "key-value", "storage", "cffi"]
+dependencies = [
+    "cffi>=1.15.0",
+]
+requires-python = ">=3.8"
+
+[project.urls]
+Homepage = "https://github.com/chainscore/pyrocks"
+Documentation = "https://github.com/chainscore/pyrocks#readme"
+Repository = "https://github.com/chainscore/pyrocks.git"
+"Bug Tracker" = "https://github.com/chainscore/pyrocks/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pyrocks = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+[tool.black]
+line-length = 88
+target-version = ["py38"]
+
+[tool.isort]
+profile = "black"
+line_length = 88 
