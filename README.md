@@ -94,10 +94,111 @@ with open_database('/path/to/database') as db:
     db.put(b'key1', b'value1')
     db.put(b'key2', b'value2')
     
-    # Get all key-value pairs
+    # Get all key-value pairs (warning: loads everything into memory)
     all_data = db.get_all()
     for key, value in all_data.items():
         print(f"{key} -> {value}")
+```
+
+### Range Queries and Pagination
+
+For large databases, use range queries with pagination instead of `get_all()`:
+
+```python
+with open_database('/path/to/database') as db:
+    # Add sample data
+    for i in range(10000):
+        key = f"user:{i:06d}".encode()
+        value = f"User {i}".encode()
+        db.put(key, value)
+    
+    # Paginated access - get 1000 records at a time
+    batch_size = 1000
+    start_key = None
+    
+    while True:
+        # Get next batch
+        batch = db.get_range(start_key=start_key, limit=batch_size)
+        if not batch:
+            break
+            
+        print(f"Processing {len(batch)} records...")
+        
+        # Process the batch
+        for key, value in batch.items():
+            process_record(key, value)
+        
+        # Setup for next batch
+        last_key = max(batch.keys())
+        start_key = last_key + b'\x00'  # Next key after last_key
+    
+    # Query specific ranges
+    user_data = db.get_range(
+        start_key=b'user:', 
+        end_key=b'user:\xFF', 
+        limit=500
+    )
+    
+    # Memory-efficient iteration (one record at a time)
+    for key, value in db.iterate_range(start_key=b'user:', end_key=b'user:\xFF'):
+        process_user(key, value)
+```
+
+### Handling 10M+ Record Databases
+
+For very large databases (10M+ records), here's how to efficiently paginate in 100K batches:
+
+```python
+def process_large_database_in_batches(db_path, batch_size=100_000):
+    """
+    Process a large database (10M+ records) in manageable batches.
+    This approach uses constant memory regardless of database size.
+    """
+    with open_database(db_path) as db:
+        start_key = None
+        total_processed = 0
+        batch_count = 0
+        
+        while True:
+            # Get next batch
+            batch = db.get_range(start_key=start_key, limit=batch_size)
+            if not batch:
+                break
+            
+            batch_count += 1
+            total_processed += len(batch)
+            
+            print(f"Processing batch {batch_count}: {len(batch)} records")
+            print(f"Total processed so far: {total_processed}")
+            
+            # Process each record in the batch
+            for key, value in batch.items():
+                # Your processing logic here
+                process_record(key, value)
+            
+            # Prepare for next batch
+            last_key = max(batch.keys())
+            start_key = last_key + b'\x00'
+            
+            # Optional: Add progress tracking or break conditions
+            if total_processed >= 10_000_000:  # Safety limit
+                break
+        
+        print(f"Completed! Processed {total_processed} records in {batch_count} batches")
+
+# Even more memory-efficient approach using iterator
+def stream_process_large_database(db_path):
+    """
+    Stream process records one at a time - ultimate memory efficiency.
+    """
+    with open_database(db_path) as db:
+        processed = 0
+        for key, value in db.iterate_range():
+            process_record(key, value)
+            processed += 1
+            
+            if processed % 100_000 == 0:
+                print(f"Processed {processed} records...")
 ```
 
 ### Working with Strings
@@ -174,7 +275,9 @@ RockStore(path, options=None)
 - `delete(key: bytes, sync: bool = False)` - Delete binary data
 
 **Bulk Operations:**
-- `get_all(fill_cache: bool = True) -> dict[bytes, bytes]` - Get all key-value pairs
+- `get_all(fill_cache: bool = True) -> dict[bytes, bytes]` - Get all key-value pairs (loads into memory)
+- `get_range(start_key: bytes = None, end_key: bytes = None, limit: int = None, fill_cache: bool = True) -> dict[bytes, bytes]` - Get range of key-value pairs with pagination support
+- `iterate_range(start_key: bytes = None, end_key: bytes = None, fill_cache: bool = True) -> Iterator[tuple[bytes, bytes]]` - Memory-efficient iterator over key-value pairs
 
 **Resource Management:**
 - `close()` - Close the database

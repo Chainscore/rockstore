@@ -122,6 +122,7 @@ class RockStore:
             void rocksdb_iter_destroy(rocksdb_iterator_t* iterator);
             unsigned char rocksdb_iter_valid(const rocksdb_iterator_t* iterator);
             void rocksdb_iter_seek_to_first(rocksdb_iterator_t* iterator);
+            void rocksdb_iter_seek(rocksdb_iterator_t* iterator, const char* key, size_t keylen);
             void rocksdb_iter_next(rocksdb_iterator_t* iterator);
             const char* rocksdb_iter_key(const rocksdb_iterator_t* iterator, size_t* keylen);
             const char* rocksdb_iter_value(const rocksdb_iterator_t* iterator, size_t* vallen);
@@ -251,6 +252,7 @@ class RockStore:
 
         Warning: This method loads all data into memory. For very large databases,
         this can consume a significant amount of memory. Use with caution.
+        Consider using get_range() for paginated access to large datasets.
 
         Args:
             fill_cache (bool, optional): Whether to fill the block cache. Defaults to True.
@@ -278,6 +280,140 @@ class RockStore:
         if not fill_cache:
             self.lib.rocksdb_readoptions_destroy(roptions)
         return result
+
+    def get_range(self, start_key: bytes = None, end_key: bytes = None, 
+                  limit: int = None, fill_cache: bool = True) -> dict:
+        """
+        Retrieves a range of key-value pairs from the database with pagination support.
+        
+        This method is efficient for large databases as it uses iterators and doesn't
+        load all data into memory at once. Perfect for paginated queries.
+        
+        Args:
+            start_key (bytes, optional): Starting key (inclusive). If None, starts from beginning.
+            end_key (bytes, optional): Ending key (inclusive). If None, goes to end.
+            limit (int, optional): Maximum number of key-value pairs to return. If None, no limit.
+            fill_cache (bool, optional): Whether to fill the block cache. Defaults to True.
+            
+        Returns:
+            dict: A dictionary containing the key-value pairs in the specified range.
+            
+        Example:
+            # Get first 1000 records
+            batch1 = db.get_range(limit=1000)
+            
+            # Get next 1000 records starting after last key from batch1
+            last_key = max(batch1.keys()) if batch1 else None
+            if last_key:
+                # Get the next key after last_key for pagination
+                next_start = last_key + b'\x00'  # Simple increment
+                batch2 = db.get_range(start_key=next_start, limit=1000)
+            
+            # Get range between specific keys
+            range_data = db.get_range(start_key=b'user:', end_key=b'user:\xFF', limit=500)
+        """
+        result = {}
+        count = 0
+        
+        roptions = self.default_roptions
+        if not fill_cache:
+            roptions = self.lib.rocksdb_readoptions_create()
+            self.lib.rocksdb_readoptions_set_fill_cache(roptions, 0)
+            
+        iterator = self.lib.rocksdb_create_iterator(self.db, roptions)
+        
+        # Position iterator at start_key or beginning
+        if start_key is not None:
+            self.lib.rocksdb_iter_seek(iterator, start_key, len(start_key))
+        else:
+            self.lib.rocksdb_iter_seek_to_first(iterator)
+        
+        keylen = self.ffi.new("size_t*")
+        vallen = self.ffi.new("size_t*")
+        
+        while self.lib.rocksdb_iter_valid(iterator) == 1:
+            # Check limit
+            if limit is not None and count >= limit:
+                break
+                
+            key_ptr = self.lib.rocksdb_iter_key(iterator, keylen)
+            value_ptr = self.lib.rocksdb_iter_value(iterator, vallen)
+            key = bytes(self.ffi.buffer(key_ptr, keylen[0]))
+            value = bytes(self.ffi.buffer(value_ptr, vallen[0]))
+            
+            # Check end_key boundary (inclusive)
+            if end_key is not None and key > end_key:
+                break
+                
+            result[key] = value
+            count += 1
+            self.lib.rocksdb_iter_next(iterator)
+            
+        self.lib.rocksdb_iter_destroy(iterator)
+        if not fill_cache:
+            self.lib.rocksdb_readoptions_destroy(roptions)
+            
+        return result
+
+    def iterate_range(self, start_key: bytes = None, end_key: bytes = None, 
+                      fill_cache: bool = True):
+        """
+        Generator that yields key-value pairs in the specified range one at a time.
+        
+        This is the most memory-efficient way to process large ranges as it yields
+        one item at a time instead of loading everything into memory.
+        
+        Args:
+            start_key (bytes, optional): Starting key (inclusive). If None, starts from beginning.
+            end_key (bytes, optional): Ending key (inclusive). If None, goes to end.
+            fill_cache (bool, optional): Whether to fill the block cache. Defaults to True.
+            
+        Yields:
+            tuple: (key, value) pairs as bytes
+            
+        Example:
+            # Process all records one at a time
+            for key, value in db.iterate_range():
+                print(f"Processing {key}: {value}")
+                
+            # Process specific range  
+            for key, value in db.iterate_range(start_key=b'user:', end_key=b'user:\xFF'):
+                process_user_record(key, value)
+        """
+        roptions = self.default_roptions
+        if not fill_cache:
+            roptions = self.lib.rocksdb_readoptions_create()
+            self.lib.rocksdb_readoptions_set_fill_cache(roptions, 0)
+            
+        iterator = self.lib.rocksdb_create_iterator(self.db, roptions)
+        
+        try:
+            # Position iterator at start_key or beginning
+            if start_key is not None:
+                self.lib.rocksdb_iter_seek(iterator, start_key, len(start_key))
+            else:
+                self.lib.rocksdb_iter_seek_to_first(iterator)
+            
+            keylen = self.ffi.new("size_t*")
+            vallen = self.ffi.new("size_t*")
+            
+            while self.lib.rocksdb_iter_valid(iterator) == 1:
+                key_ptr = self.lib.rocksdb_iter_key(iterator, keylen)
+                value_ptr = self.lib.rocksdb_iter_value(iterator, vallen)
+                key = bytes(self.ffi.buffer(key_ptr, keylen[0]))
+                value = bytes(self.ffi.buffer(value_ptr, vallen[0]))
+                
+                # Check end_key boundary (inclusive)
+                if end_key is not None and key > end_key:
+                    break
+                    
+                yield key, value
+                self.lib.rocksdb_iter_next(iterator)
+                
+        finally:
+            self.lib.rocksdb_iter_destroy(iterator)
+            if not fill_cache:
+                self.lib.rocksdb_readoptions_destroy(roptions)
 
     def delete(self, key_bytes: bytes, sync: bool = False):
         self._ensure_writable()

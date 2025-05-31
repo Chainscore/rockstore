@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2024-01-XX
+
+### Added
+- `get_range()` method for efficient range queries with pagination support
+- `iterate_range()` generator for memory-efficient streaming of key-value pairs
+- Support for start_key, end_key, and limit parameters in range operations
+- Comprehensive pagination examples for large databases (10M+ records)
+- Enhanced documentation with practical examples for batch processing
+
+### Enhanced
+- Updated API documentation with range query methods
+- Added tests for pagination scenarios and edge cases
+
 ## [0.1.1] - 2024-01-XX
 
 ### Removed

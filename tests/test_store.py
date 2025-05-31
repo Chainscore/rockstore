@@ -205,4 +205,153 @@ def test_block_cache_option(db_path):
         db.put(b"test", b"cache")
         assert db.get(b"test") == b"cache"
     
+    db.close()
+
+def test_get_range_basic(db_path):
+    """Test basic range queries."""
+    db = RockStore(db_path)
+    
+    # Add test data
+    test_data = {
+        b"user:001": b"Alice",
+        b"user:002": b"Bob", 
+        b"user:003": b"Charlie",
+        b"product:001": b"Laptop",
+        b"product:002": b"Mouse",
+        b"order:001": b"Order1",
+        b"order:002": b"Order2"
+    }
+    
+    for key, value in test_data.items():
+        db.put(key, value)
+    
+    # Test full range (no limits)
+    all_data = db.get_range()
+    assert len(all_data) == 7
+    
+    # Test with limit
+    limited = db.get_range(limit=3)
+    assert len(limited) == 3
+    
+    # Test range with start and end keys
+    user_range = db.get_range(start_key=b"user:", end_key=b"user:\xFF")
+    assert len(user_range) == 3
+    assert b"user:001" in user_range
+    assert b"user:002" in user_range
+    assert b"user:003" in user_range
+    assert b"product:001" not in user_range
+    
+    # Test range with start key only
+    from_user = db.get_range(start_key=b"user:")
+    assert len(from_user) == 3  # Only user keys should be included (alphabetically last)
+    
+    db.close()
+
+def test_pagination_scenario(db_path):
+    """Test pagination with large dataset scenario."""
+    db = RockStore(db_path)
+    
+    # Create a larger dataset to test pagination
+    total_records = 1000
+    for i in range(total_records):
+        key = f"key:{i:06d}".encode()  # Zero-padded for proper sorting
+        value = f"value_{i}".encode()
+        db.put(key, value)
+    
+    # Test pagination - get 100 records at a time
+    batch_size = 100
+    all_keys_paginated = []
+    start_key = None
+    
+    while True:
+        batch = db.get_range(start_key=start_key, limit=batch_size)
+        if not batch:
+            break
+            
+        batch_keys = sorted(batch.keys())
+        all_keys_paginated.extend(batch_keys)
+        
+        # Get next start key for pagination
+        last_key = batch_keys[-1]
+        # Simple way to get next key: append a null byte
+        start_key = last_key + b'\x00'
+    
+    # Verify we got all records
+    assert len(all_keys_paginated) == total_records
+    
+    # Verify they're in order
+    expected_keys = [f"key:{i:06d}".encode() for i in range(total_records)]
+    assert all_keys_paginated == expected_keys
+    
+    db.close()
+
+def test_iterate_range_generator(db_path):
+    """Test the memory-efficient iterate_range generator."""
+    db = RockStore(db_path)
+    
+    # Add test data
+    test_data = {
+        b"a001": b"value1",
+        b"a002": b"value2", 
+        b"a003": b"value3",
+        b"b001": b"value4",
+        b"b002": b"value5",
+    }
+    
+    for key, value in test_data.items():
+        db.put(key, value)
+    
+    # Test iterating all data
+    all_items = list(db.iterate_range())
+    assert len(all_items) == 5
+    
+    # Test iterating specific range
+    a_items = list(db.iterate_range(start_key=b"a", end_key=b"a\xFF"))
+    assert len(a_items) == 3
+    
+    # Verify the generator returns tuples
+    for key, value in a_items:
+        assert isinstance(key, bytes)
+        assert isinstance(value, bytes)
+        assert key.startswith(b"a")
+    
+    # Test that it's truly a generator (memory efficient)
+    gen = db.iterate_range(start_key=b"a", end_key=b"a\xFF")
+    first_item = next(gen)
+    assert first_item == (b"a001", b"value1")
+    
+    db.close()
+
+def test_range_query_edge_cases(db_path):
+    """Test edge cases for range queries."""
+    db = RockStore(db_path)
+    
+    # Test on empty database
+    empty_range = db.get_range()
+    assert len(empty_range) == 0
+    
+    empty_iter = list(db.iterate_range())
+    assert len(empty_iter) == 0
+    
+    # Add some data
+    db.put(b"key1", b"value1")
+    db.put(b"key2", b"value2")
+    
+    # Test range with non-existent start key
+    result = db.get_range(start_key=b"key0", end_key=b"key1")
+    assert len(result) == 1
+    assert b"key1" in result
+    
+    # Test range with non-existent end key  
+    result = db.get_range(start_key=b"key1", end_key=b"key9")
+    assert len(result) == 2
+    
+    # Test range where start > end (should return empty)
+    result = db.get_range(start_key=b"key2", end_key=b"key1")
+    assert len(result) == 0
+    
+    # Test limit of 0
+    result = db.get_range(limit=0)
+    assert len(result) == 0
+    
     db.close() 
