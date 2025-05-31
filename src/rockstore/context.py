@@ -14,7 +14,7 @@ def open_database(path, options=None):
         
     Example:
         >>> with open_database('my_db', options={'read_only': True}) as db:
-        ...     value = db.get_string('some_key')
+        ...     value = db.get(b'some_key')
         ...     print(value)
     """
     if options is None:

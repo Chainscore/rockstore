@@ -7,7 +7,7 @@ class RockStore:
     A simple Python wrapper for RocksDB using CFFI.
     
     This class provides a high-level interface to RocksDB operations with support
-    for both binary and string data, customizable options, and read-only mode.
+    for binary data, customizable options, and read-only mode.
     
     Args:
         path (str): The path to the database file.
@@ -33,13 +33,13 @@ class RockStore:
         ...     "write_buffer_size": 64 * 1024 * 1024  # 64MB
         ... }
         >>> db = RockStore("my_rocks_db", options=db_options)
-        >>> db.put_string("key1", "value1")
-        >>> print(db.get_string("key1"))  # Output: value1
+        >>> db.put(b"key1", b"value1")
+        >>> print(db.get(b"key1"))  # b'value1'
         >>> db.close()
 
         # For read-only access:
         >>> ro_db = RockStore("my_rocks_db", options={"read_only": True})
-        >>> print(ro_db.get_string("key1"))  # Output: value1
+        >>> print(ro_db.get(b"key1"))  # b'value1'
         >>> ro_db.close()
     """
     NO_COMPRESSION = 0
@@ -228,9 +228,6 @@ class RockStore:
         if sync:
              self.lib.rocksdb_writeoptions_destroy(woptions)
         
-    def put_string(self, key: str, value: str, sync: bool = False):
-        self.put(key.encode("utf-8"), value.encode("utf-8"), sync=sync)
-
     def get(self, key_bytes: bytes, fill_cache: bool = True) -> bytes | None:
         error = self.ffi.new("char**")
         vallen = self.ffi.new("size_t*")
@@ -247,12 +244,6 @@ class RockStore:
         value = bytes(self.ffi.buffer(value_ptr, vallen[0]))
         self.lib.rocksdb_free(value_ptr)
         return value
-        
-    def get_string(self, key: str, fill_cache: bool = True) -> str | None:
-        value = self.get(key.encode("utf-8"), fill_cache=fill_cache)
-        if value is None:
-            return None
-        return value.decode("utf-8")
 
     def get_all(self, fill_cache: bool = True) -> dict:
         """
@@ -300,9 +291,6 @@ class RockStore:
         if sync:
             self.lib.rocksdb_writeoptions_destroy(woptions)
         
-    def delete_string(self, key: str, sync: bool = False):
-        self.delete(key.encode("utf-8"), sync=sync)
-
     def close(self):
         if hasattr(self, "db") and self.db:
             self.lib.rocksdb_close(self.db)

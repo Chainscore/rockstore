@@ -39,24 +39,22 @@ def test_store_basic_operations(db_path):
     # Clean up
     db.close()
 
-def test_store_string_operations(db_path):
-    """Test string operations."""
+def test_store_unicode_data(db_path):
+    """Test storing unicode data as bytes."""
     db = RockStore(db_path)
     
-    # Test putting and getting string data
-    db.put_string("string_key", "string_value")
-    assert db.get_string("string_key") == "string_value"
+    # Test putting and getting unicode string data as bytes
+    unicode_key = "unicode_key".encode("utf-8")
+    unicode_value = "你好，世界".encode("utf-8")
+    db.put(unicode_key, unicode_value)
+    assert db.get(unicode_key) == unicode_value
     
-    # Test unicode strings
-    db.put_string("unicode_key", "你好，世界")
-    assert db.get_string("unicode_key") == "你好，世界"
-    
-    # Test getting nonexistent data
-    assert db.get_string("nonexistent") is None
+    # Verify it decodes back correctly
+    assert db.get(unicode_key).decode("utf-8") == "你好，世界"
     
     # Test deleting data
-    db.delete_string("string_key")
-    assert db.get_string("string_key") is None
+    db.delete(unicode_key)
+    assert db.get(unicode_key) is None
     
     # Clean up
     db.close()
@@ -86,11 +84,11 @@ def test_context_manager(db_path):
     """Test the context manager."""
     # Add data with context manager
     with open_database(db_path) as db:
-        db.put_string("key1", "value1")
+        db.put(b"key1", b"value1")
     
     # Verify data persists after context manager exits
     with open_database(db_path) as db:
-        assert db.get_string("key1") == "value1"
+        assert db.get(b"key1") == b"value1"
 
 def test_custom_options_instantiation(db_path_factory):
     """Test instantiating RockStore with various custom options."""
@@ -160,22 +158,18 @@ def test_read_only_mode(db_path_factory):
     # Create and populate the database first
     with RockStore(writable_db_path) as db:
         db.put(b"key1", b"value1")
-        db.put_string("key2", "value2")
+        db.put(b"key2", b"value2")
 
     # Open in read-only mode
     ro_db = RockStore(writable_db_path, options={"read_only": True})
     assert ro_db.get(b"key1") == b"value1"
-    assert ro_db.get_string("key2") == "value2"
+    assert ro_db.get(b"key2") == b"value2"
     
     # Test that write operations fail
     with pytest.raises(IOError):
         ro_db.put(b"new_key", b"new_value")
     with pytest.raises(IOError):
-        ro_db.put_string("new_key_str", "new_value_str")
-    with pytest.raises(IOError):
         ro_db.delete(b"key1")
-    with pytest.raises(IOError):
-        ro_db.delete_string("key2")
 
     ro_db.close()
 

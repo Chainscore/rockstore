@@ -4,12 +4,12 @@ A lightweight Python wrapper for RocksDB using CFFI.
 
 ## Overview
 
-RockStore provides a simple, Pythonic interface to RocksDB, Facebook's persistent key-value store. It uses CFFI for efficient native library bindings and supports both binary and string data operations.
+RockStore provides a simple, Pythonic interface to RocksDB, Facebook's persistent key-value store. It uses CFFI for efficient native library bindings and focuses on clean binary data operations.
 
 ## Features
 
 - **Simple API**: Easy-to-use Python interface for RocksDB operations
-- **Binary & String Support**: Work with both raw bytes and UTF-8 strings
+- **Binary Operations**: Direct work with bytes for maximum performance
 - **Context Manager**: Automatic resource management with `with` statements
 - **Configurable Options**: Customize compression, buffer sizes, and more
 - **Read-Only Mode**: Open databases in read-only mode for safe concurrent access
@@ -63,13 +63,13 @@ db.put(b'key1', b'value1')
 value = db.get(b'key1')
 print(value)  # b'value1'
 
-# Store and retrieve string data
-db.put_string('name', 'Alice')
-name = db.get_string('name')
+# Store and retrieve string data (encode/decode manually)
+db.put('name'.encode(), 'Alice'.encode())
+name = db.get('name'.encode()).decode()
 print(name)  # 'Alice'
 
 # Delete data
-db.delete_string('name')
+db.delete(b'key1')
 
 # Clean up
 db.close()
@@ -81,9 +81,9 @@ db.close()
 from rockstore import open_database
 
 with open_database('/path/to/database') as db:
-    db.put_string('hello', 'world')
-    value = db.get_string('hello')
-    print(value)  # 'world'
+    db.put(b'hello', b'world')
+    value = db.get(b'hello')
+    print(value)  # b'world'
 # Database is automatically closed
 ```
 
@@ -98,6 +98,26 @@ with open_database('/path/to/database') as db:
     all_data = db.get_all()
     for key, value in all_data.items():
         print(f"{key} -> {value}")
+```
+
+### Working with Strings
+
+```python
+# Helper functions for string encoding/decoding
+def encode_string(s):
+    return s.encode('utf-8')
+
+def decode_bytes(b):
+    return b.decode('utf-8')
+
+with open_database('/path/to/database') as db:
+    # Store string data
+    db.put(encode_string('user:123'), encode_string('John Doe'))
+    
+    # Retrieve and decode
+    user_data = db.get(encode_string('user:123'))
+    if user_data:
+        print(decode_bytes(user_data))  # 'John Doe'
 ```
 
 ## Configuration Options
@@ -152,11 +172,6 @@ RockStore(path, options=None)
 - `put(key: bytes, value: bytes, sync: bool = False)` - Store binary data
 - `get(key: bytes, fill_cache: bool = True) -> bytes | None` - Retrieve binary data
 - `delete(key: bytes, sync: bool = False)` - Delete binary data
-
-**String Operations:**
-- `put_string(key: str, value: str, sync: bool = False)` - Store string data
-- `get_string(key: str, fill_cache: bool = True) -> str | None` - Retrieve string data
-- `delete_string(key: str, sync: bool = False)` - Delete string data
 
 **Bulk Operations:**
 - `get_all(fill_cache: bool = True) -> dict[bytes, bytes]` - Get all key-value pairs

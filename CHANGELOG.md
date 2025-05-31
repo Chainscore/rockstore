@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2024-01-XX
+
+### Removed
+- **BREAKING**: Removed string convenience methods (`put_string`, `get_string`, `delete_string`)
+- API now focuses solely on binary operations for better performance and simplicity
+
+### Changed
+- Updated documentation to show manual string encoding/decoding examples
+- Simplified API surface to core binary operations only
+
 ## [0.1.0] - 2024-01-XX
 
 ### Added
