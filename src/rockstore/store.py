@@ -1,5 +1,6 @@
 import os
 import platform
+import sys
 from cffi import FFI
 
 class RockStore:
@@ -162,19 +163,46 @@ class RockStore:
     def _load_library(self):
         system = platform.system()
         errors = []
+        
+        # Priority 1: PyInstaller bundle directory
+        bundle_paths = []
+        if hasattr(sys, '_MEIPASS'):
+            # Running in PyInstaller bundle
+            bundle_dir = sys._MEIPASS
+            bundle_paths = [bundle_dir]
+            
+        # Priority 2: Tessera libs directory (from project root)
+        tessera_lib_paths = []
+        try:
+            # Find tessera project root by looking for specific markers
+            current_path = os.path.abspath(__file__)
+            while current_path != os.path.dirname(current_path):
+                if os.path.exists(os.path.join(current_path, 'tessera.spec')):
+                    tessera_root = current_path
+                    tessera_lib_paths = [os.path.join(tessera_root, 'libs')]
+                    break
+                current_path = os.path.dirname(current_path)
+        except:
+            pass
+        
+        # Priority 3: Original rockstore lib directory
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         local_lib_dir = os.path.join(project_root, "lib")
+        
+        # Build prioritized search paths
+        priority_paths = bundle_paths + tessera_lib_paths + [local_lib_dir]
+        
         if system == "Darwin":
-            lib_names = [
-                os.path.join(local_lib_dir, "librocksdb.dylib"),
+            lib_filenames = ["librocksdb.dylib"]
+            fallback_paths = [
                 "librocksdb.dylib", "/usr/local/lib/librocksdb.dylib",
                 "/opt/homebrew/lib/librocksdb.dylib",
                 "/usr/local/Cellar/rocksdb/*/lib/librocksdb.dylib",
                 "/opt/homebrew/Cellar/rocksdb/*/lib/librocksdb.dylib",
             ]
         elif system == "Linux":
-            lib_names = [
-                os.path.join(local_lib_dir, "librocksdb.so"),
+            lib_filenames = ["librocksdb.so"]
+            fallback_paths = [
                 "librocksdb.so", "/usr/lib/librocksdb.so",
                 "/usr/lib64/librocksdb.so", 
                 "/usr/lib/x86_64-linux-gnu/librocksdb.so",
@@ -183,8 +211,20 @@ class RockStore:
                 "/usr/local/lib/librocksdb.so",
                 "/usr/local/lib64/librocksdb.so",
             ]
-        else:
-            lib_names = [os.path.join(local_lib_dir, "rocksdb.dll"), "rocksdb.dll"]
+        else:  # Windows
+            lib_filenames = ["rocksdb.dll"]
+            fallback_paths = ["rocksdb.dll"]
+        
+        # Build complete search list with priorities
+        lib_names = []
+        
+        # Add priority paths with specific library names
+        for priority_path in priority_paths:
+            for lib_filename in lib_filenames:
+                lib_names.append(os.path.join(priority_path, lib_filename))
+        
+        # Add fallback system paths
+        lib_names.extend(fallback_paths)
         for lib_name in lib_names:
             if "*" in lib_name:
                 import glob
