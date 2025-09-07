@@ -169,7 +169,10 @@ class RockStore:
         if hasattr(sys, '_MEIPASS'):
             # Running in PyInstaller bundle
             bundle_dir = sys._MEIPASS
-            bundle_paths = [bundle_dir]
+            bundle_paths = [
+                os.path.join(bundle_dir, 'lib'),
+                bundle_dir
+            ]
             
         # Priority 2: Tessera libs directory (from project root)
         tessera_lib_paths = []
@@ -177,7 +180,8 @@ class RockStore:
             # Find tessera project root by looking for specific markers
             current_path = os.path.abspath(__file__)
             while current_path != os.path.dirname(current_path):
-                if os.path.exists(os.path.join(current_path, 'tessera.spec')):
+                if os.path.exists(os.path.join(current_path, 'tessera.spec')) or \
+                   os.path.exists(os.path.join(current_path, 'pyproject.toml')):
                     tessera_root = current_path
                     tessera_lib_paths = [os.path.join(tessera_root, 'libs')]
                     break
@@ -195,7 +199,8 @@ class RockStore:
         if system == "Darwin":
             lib_filenames = ["librocksdb.dylib"]
             fallback_paths = [
-                "librocksdb.dylib", "/usr/local/lib/librocksdb.dylib",
+                "librocksdb.dylib", 
+                "/usr/local/lib/librocksdb.dylib",
                 "/opt/homebrew/lib/librocksdb.dylib",
                 "/usr/local/Cellar/rocksdb/*/lib/librocksdb.dylib",
                 "/opt/homebrew/Cellar/rocksdb/*/lib/librocksdb.dylib",
@@ -203,7 +208,8 @@ class RockStore:
         elif system == "Linux":
             lib_filenames = ["librocksdb.so"]
             fallback_paths = [
-                "librocksdb.so", "/usr/lib/librocksdb.so",
+                "librocksdb.so", 
+                "/usr/lib/librocksdb.so",
                 "/usr/lib64/librocksdb.so", 
                 "/usr/lib/x86_64-linux-gnu/librocksdb.so",
                 "/usr/lib/x86_64-linux-gnu/librocksdb.so.*",
@@ -225,22 +231,27 @@ class RockStore:
         
         # Add fallback system paths
         lib_names.extend(fallback_paths)
+        
         for lib_name in lib_names:
             if "*" in lib_name:
                 import glob
                 matching_libs = glob.glob(lib_name)
-                for lib_path in matching_libs:
+                for lib_path in sorted(matching_libs, reverse=True):  # Use newest version
                     try:
                         self.lib = self.ffi.dlopen(lib_path)
+                        print(f"[DEBUG] Successfully loaded RocksDB from: {lib_path}")
                         return
                     except OSError as e:
                         errors.append(f"Failed to load {lib_path}: {str(e)}")
             else:
                 try:
                     self.lib = self.ffi.dlopen(lib_name)
+                    print(f"[DEBUG] Successfully loaded RocksDB from: {lib_name}")
                     return
                 except OSError as e:
                     errors.append(f"Failed to load {lib_name}: {str(e)}")
+        
+        # Enhanced error reporting
         install_instructions = ""
         if system == "Linux" and os.path.exists("/etc/fedora-release"):
             install_instructions = "\nInstall RocksDB on Fedora with: sudo dnf install rocksdb rocksdb-devel"
@@ -248,7 +259,16 @@ class RockStore:
             install_instructions = "\nInstall RocksDB on Debian/Ubuntu with: sudo apt-get install librocksdb-dev"
         elif system == "Darwin":
             install_instructions = "\nInstall RocksDB on macOS with: brew install rocksdb"
-        raise RuntimeError("Couldn't load RocksDB library. Tried:\n" + "\n".join(errors) + f"{install_instructions}")
+        
+        # Show debug info about search paths
+        debug_info = f"\nDebug Info:"
+        debug_info += f"\n- PyInstaller bundle: {hasattr(sys, '_MEIPASS')}"
+        if hasattr(sys, '_MEIPASS'):
+            debug_info += f"\n- Bundle path: {sys._MEIPASS}"
+        debug_info += f"\n- Priority paths checked: {priority_paths}"
+        debug_info += f"\n- System: {system}"
+        
+        raise RuntimeError("Couldn't load RocksDB library. Tried:\n" + "\n".join(errors) + f"{install_instructions}{debug_info}")
 
     def _check_error(self, error_ptr):
         error = error_ptr[0]
