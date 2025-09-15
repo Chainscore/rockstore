@@ -239,14 +239,12 @@ class RockStore:
                 for lib_path in sorted(matching_libs, reverse=True):  # Use newest version
                     try:
                         self.lib = self.ffi.dlopen(lib_path)
-                        print(f"[DEBUG] Successfully loaded RocksDB from: {lib_path}")
                         return
                     except OSError as e:
                         errors.append(f"Failed to load {lib_path}: {str(e)}")
             else:
                 try:
                     self.lib = self.ffi.dlopen(lib_name)
-                    print(f"[DEBUG] Successfully loaded RocksDB from: {lib_name}")
                     return
                 except OSError as e:
                     errors.append(f"Failed to load {lib_name}: {str(e)}")
