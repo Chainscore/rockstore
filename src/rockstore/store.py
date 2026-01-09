@@ -88,6 +88,7 @@ class RockStore:
             typedef struct rocksdb_writeoptions_t rocksdb_writeoptions_t;
             typedef struct rocksdb_readoptions_t rocksdb_readoptions_t;
             typedef struct rocksdb_iterator_t rocksdb_iterator_t;
+            typedef struct rocksdb_flushoptions_t rocksdb_flushoptions_t;
 
             rocksdb_options_t* rocksdb_options_create();
             void rocksdb_options_set_create_if_missing(rocksdb_options_t*, unsigned char);
@@ -108,6 +109,10 @@ class RockStore:
             rocksdb_readoptions_t* rocksdb_readoptions_create();
             void rocksdb_readoptions_destroy(rocksdb_readoptions_t*);
             void rocksdb_readoptions_set_fill_cache(rocksdb_readoptions_t*, unsigned char);
+            
+            rocksdb_flushoptions_t* rocksdb_flushoptions_create();
+            void rocksdb_flushoptions_destroy(rocksdb_flushoptions_t*);
+            void rocksdb_flush(rocksdb_t*, const rocksdb_flushoptions_t*, char**);
             
             void rocksdb_put(rocksdb_t*, const rocksdb_writeoptions_t*,
                            const char* key, size_t keylen,
@@ -472,6 +477,22 @@ class RockStore:
             self.lib.rocksdb_iter_destroy(iterator)
             if not fill_cache:
                 self.lib.rocksdb_readoptions_destroy(roptions)
+
+    def flush(self):
+        """
+        Forces RocksDB to flush memtables to disk and allows WAL cleanup.
+        Essential for long-running write-heavy tests.
+        """
+        if not hasattr(self, "db") or not self.db:
+            return
+
+        error = self.ffi.new("char**")
+        fopts = self.lib.rocksdb_flushoptions_create()
+
+        self.lib.rocksdb_flush(self.db, fopts, error)
+        self._check_error(error)
+
+        self.lib.rocksdb_flushoptions_destroy(fopts)
 
     def delete(self, key_bytes: bytes, sync: bool = False):
         self._ensure_writable()
