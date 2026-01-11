@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=74.0", "wheel", "cffi>=2.0.0"]
+requires = ["setuptools>=74.0", "wheel", "cffi>=2.0.0", "setuptools_scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "rockstore"
-version = "0.1.2"
+dynamic = ["version"]
 description = "A lightweight Python wrapper for RocksDB using CFFI"
 readme = "README.md"
 authors = [
@@ -52,6 +52,9 @@ where = ["src"]
 [tool.setuptools.package-data]
 rockstore = ["py.typed"]
 
+[tool.setuptools_scm]
+write_to = "src/rockstore/_version.py"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
@@ -64,4 +67,4 @@ target-version = ["py38"]
 
 [tool.isort]
 profile = "black"
-line_length = 88 
+line_length = 88
