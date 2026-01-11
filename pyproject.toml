@@ -27,9 +27,9 @@ classifiers = [
 ]
 keywords = ["rocksdb", "database", "key-value", "cffi", "embedded"]
 dependencies = [
-    "cffi>=2.0.0",
+    "cffi>=1.15.0",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.8"
 
 [project.optional-dependencies]
 dev = [

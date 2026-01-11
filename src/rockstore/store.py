@@ -1,6 +1,7 @@
 import os
 import platform
 import sys
+from __future__ import annotations  # Enable modern type hinting on older Python versions
 from cffi import FFI
 
 
