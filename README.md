@@ -1,5 +1,11 @@
 # RockStore
 
+[![PyPI version](https://badge.fury.io/py/rockstore.svg)](https://badge.fury.io/py/rockstore)
+[![Python Versions](https://img.shields.io/pypi/pyversions/rockstore.svg)](https://pypi.org/project/rockstore/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Tests](https://github.com/chainscore/rockstore/actions/workflows/test.yml/badge.svg)](https://github.com/chainscore/rockstore/actions/workflows/test.yml)
+
 A lightweight Python wrapper for RocksDB using CFFI.
 
 ## Overview
@@ -341,4 +347,13 @@ MIT License - see LICENSE file for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. 
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+<p align="center">
+  <strong>Developed by Chainscore Labs</strong><br>
+  <a href="https://chainscore.finance">
+    <img src="https://www.chainscorelabs.com/en/opengraph-image" alt="Chainscore Labs" width="100%">
+  </a>
+</p> 

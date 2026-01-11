@@ -1,7 +1,5 @@
 import os
 import pytest
-
-# import struct # For testing merge operator
 from rockstore import RockStore, open_database
 
 
@@ -168,7 +166,9 @@ def test_read_only_mode(db_path_factory):
 
     # Test opening a non-existent DB in read-only mode (should fail)
     non_existent_ro_path = db_path_factory("non_existent_ro_db")
-    with pytest.raises(RuntimeError):  # RocksDB open_for_read_only fails if DB doesn't exist
+    with pytest.raises(
+        RuntimeError
+    ):  # RocksDB open_for_read_only fails if DB doesn't exist
         RockStore(non_existent_ro_path, options={"read_only": True})
 
 
@@ -241,7 +241,9 @@ def test_get_range_basic(db_path):
 
     # Test range with start key only
     from_user = db.get_range(start_key=b"user:")
-    assert len(from_user) == 3  # Only user keys should be included (alphabetically last)
+    assert (
+        len(from_user) == 3
+    )  # Only user keys should be included (alphabetically last)
 
     db.close()
 

@@ -1,4 +1,6 @@
-from __future__ import annotations  # Enable modern type hinting on older Python versions
+from __future__ import (
+    annotations,
+)  # Enable modern type hinting on older Python versions
 import os
 import platform
 import sys
@@ -79,7 +81,9 @@ class RockStore:
 
         error = self.ffi.new("char**")
         if self.is_read_only:
-            self.db = self.lib.rocksdb_open_for_read_only(self.db_options, self.path, 0, error)
+            self.db = self.lib.rocksdb_open_for_read_only(
+                self.db_options, self.path, 0, error
+            )
         else:
             create_if_missing = self._db_options_dict.get("create_if_missing", True)
             self.lib.rocksdb_options_set_create_if_missing(
@@ -98,7 +102,8 @@ class RockStore:
         self.close()
 
     def _define_c_interface(self):
-        self.ffi.cdef("""
+        self.ffi.cdef(
+            """
             typedef struct rocksdb_t rocksdb_t;
             typedef struct rocksdb_options_t rocksdb_options_t;
             typedef struct rocksdb_writeoptions_t rocksdb_writeoptions_t;
@@ -156,7 +161,8 @@ class RockStore:
             void rocksdb_writebatch_delete(rocksdb_writebatch_t*, const char* key, size_t klen);
             void rocksdb_write(rocksdb_t*, const rocksdb_writeoptions_t*, 
                               rocksdb_writebatch_t*, char** errptr);
-        """)
+        """
+        )
 
     def _configure_db_options(self):
         opts = self._db_options_dict
@@ -179,17 +185,23 @@ class RockStore:
         compression_str = opts.get("compression_type", "snappy_compression")
         if compression_str not in compression_map:
             raise ValueError(f"Invalid compression type: {compression_str}")
-        self.lib.rocksdb_options_set_compression(self.db_options, compression_map[compression_str])
+        self.lib.rocksdb_options_set_compression(
+            self.db_options, compression_map[compression_str]
+        )
 
         write_buffer_size = opts.get("write_buffer_size", 64 * 1024 * 1024)
         if not isinstance(write_buffer_size, int) or write_buffer_size <= 0:
             raise ValueError("write_buffer_size must be a positive integer.")
-        self.lib.rocksdb_options_set_write_buffer_size(self.db_options, write_buffer_size)
+        self.lib.rocksdb_options_set_write_buffer_size(
+            self.db_options, write_buffer_size
+        )
 
         max_open_files = opts.get("max_open_files", 1000)
         if not isinstance(max_open_files, int) or max_open_files <= 0:
             if max_open_files != -1:
-                raise ValueError("max_open_files must be a positive integer or -1 for infinity.")
+                raise ValueError(
+                    "max_open_files must be a positive integer or -1 for infinity."
+                )
         self.lib.rocksdb_options_set_max_open_files(self.db_options, max_open_files)
 
     def _load_library(self):
@@ -209,9 +221,9 @@ class RockStore:
             # Find tessera project root by looking for specific markers
             current_path = os.path.abspath(__file__)
             while current_path != os.path.dirname(current_path):
-                if os.path.exists(os.path.join(current_path, "tessera.spec")) or os.path.exists(
-                    os.path.join(current_path, "pyproject.toml")
-                ):
+                if os.path.exists(
+                    os.path.join(current_path, "tessera.spec")
+                ) or os.path.exists(os.path.join(current_path, "pyproject.toml")):
                     tessera_root = current_path
                     tessera_lib_paths = [os.path.join(tessera_root, "libs")]
                     break
@@ -267,7 +279,9 @@ class RockStore:
                 import glob
 
                 matching_libs = glob.glob(lib_name)
-                for lib_path in sorted(matching_libs, reverse=True):  # Use newest version
+                for lib_path in sorted(
+                    matching_libs, reverse=True
+                ):  # Use newest version
                     try:
                         RockStore._lib = self.ffi.dlopen(lib_path)
                         return
@@ -283,15 +297,13 @@ class RockStore:
         # Enhanced error reporting
         install_instructions = ""
         if system == "Linux" and os.path.exists("/etc/fedora-release"):
-            install_instructions = (
-                "\nInstall RocksDB on Fedora with: sudo dnf install rocksdb rocksdb-devel"
-            )
+            install_instructions = "\nInstall RocksDB on Fedora with: sudo dnf install rocksdb rocksdb-devel"
         elif system == "Linux" and os.path.exists("/etc/debian_version"):
-            install_instructions = (
-                "\nInstall RocksDB on Debian/Ubuntu with: sudo apt-get install librocksdb-dev"
-            )
+            install_instructions = "\nInstall RocksDB on Debian/Ubuntu with: sudo apt-get install librocksdb-dev"
         elif system == "Darwin":
-            install_instructions = "\nInstall RocksDB on macOS with: brew install rocksdb"
+            install_instructions = (
+                "\nInstall RocksDB on macOS with: brew install rocksdb"
+            )
 
         # Show debug info about search paths
         debug_info = f"\nDebug Info:"
@@ -322,7 +334,13 @@ class RockStore:
             woptions = self.lib.rocksdb_writeoptions_create()
             self.lib.rocksdb_writeoptions_set_sync(woptions, 1)
         self.lib.rocksdb_put(
-            self.db, woptions, key_bytes, len(key_bytes), value_bytes, len(value_bytes), error
+            self.db,
+            woptions,
+            key_bytes,
+            len(key_bytes),
+            value_bytes,
+            len(value_bytes),
+            error,
         )
         self._check_error(error)
         if sync:
@@ -571,7 +589,9 @@ class RockStore:
 
     def _ensure_writable(self):
         if self.is_read_only:
-            raise IOError("Database is opened in read-only mode. Write operations are not allowed.")
+            raise IOError(
+                "Database is opened in read-only mode. Write operations are not allowed."
+            )
 
     def write_batch(self, operations: list[tuple[bytes, bytes]], sync: bool = False):
         """
