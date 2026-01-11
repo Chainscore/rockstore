@@ -1,7 +1,7 @@
+from __future__ import annotations  # Enable modern type hinting on older Python versions
 import os
 import platform
 import sys
-from __future__ import annotations  # Enable modern type hinting on older Python versions
 from cffi import FFI
 
 
@@ -133,7 +133,7 @@ class RockStore:
             const char* rocksdb_iter_key(const rocksdb_iterator_t* iterator, size_t* keylen);
             const char* rocksdb_iter_value(const rocksdb_iterator_t* iterator, size_t* vallen);
             
-            rocksdb_free(void* ptr);
+            void rocksdb_free(void* ptr);
             
             // WriteBatch support for atomic multi-key operations
             typedef struct rocksdb_writebatch_t rocksdb_writebatch_t;
