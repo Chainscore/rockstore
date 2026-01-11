@@ -1,94 +1,81 @@
 import os
 import pytest
-import tempfile
-import shutil
-# import struct # For testing merge operator
 from rockstore import RockStore, open_database
 
-@pytest.fixture
-def db_path_factory():
-    temp_dirs = []
-    def _create_temp_db_path(name="test_db"):
-        temp_dir = tempfile.mkdtemp()
-        temp_dirs.append(temp_dir)
-        return os.path.join(temp_dir, name)
-    yield _create_temp_db_path
-    for temp_dir in temp_dirs:
-        shutil.rmtree(temp_dir)
-
-@pytest.fixture
-def db_path(db_path_factory):
-    return db_path_factory()
 
 def test_store_basic_operations(db_path):
     """Test basic put/get/delete operations with binary data."""
     # Create a new database
     db = RockStore(db_path)
-    
+
     # Test putting and getting data
     db.put(b"key1", b"value1")
     assert db.get(b"key1") == b"value1"
-    
+
     # Test getting nonexistent data
     assert db.get(b"nonexistent") is None
-    
+
     # Test deleting data
     db.delete(b"key1")
     assert db.get(b"key1") is None
-    
+
     # Clean up
     db.close()
+
 
 def test_store_unicode_data(db_path):
     """Test storing unicode data as bytes."""
     db = RockStore(db_path)
-    
+
     # Test putting and getting unicode string data as bytes
     unicode_key = "unicode_key".encode("utf-8")
     unicode_value = "你好，世界".encode("utf-8")
     db.put(unicode_key, unicode_value)
     assert db.get(unicode_key) == unicode_value
-    
+
     # Verify it decodes back correctly
     assert db.get(unicode_key).decode("utf-8") == "你好，世界"
-    
+
     # Test deleting data
     db.delete(unicode_key)
     assert db.get(unicode_key) is None
-    
+
     # Clean up
     db.close()
+
 
 def test_get_all(db_path):
     """Test the get_all method."""
     db = RockStore(db_path)
-    
+
     # Add some data
     db.put(b"key1", b"value1")
     db.put(b"key2", b"value2")
     db.put(b"key3", b"value3")
-    
+
     # Get all data as a dictionary
     all_data = db.get_all()
-    
+
     # Verify contents
     assert len(all_data) == 3
     assert all_data[b"key1"] == b"value1"
     assert all_data[b"key2"] == b"value2"
     assert all_data[b"key3"] == b"value3"
-    
+
     # Clean up
     db.close()
+
 
 def test_context_manager(db_path):
     """Test the context manager."""
     # Add data with context manager
     with open_database(db_path) as db:
         db.put(b"key1", b"value1")
-    
+
     # Verify data persists after context manager exits
     with open_database(db_path) as db:
         assert db.get(b"key1") == b"value1"
+
 
 def test_custom_options_instantiation(db_path_factory):
     """Test instantiating RockStore with various custom options."""
@@ -102,38 +89,41 @@ def test_custom_options_instantiation(db_path_factory):
     for i, opts in enumerate(options_list):
         current_db_path = db_path_factory(f"custom_opts_{i}")
         db = RockStore(current_db_path, options=opts)
-        db.put(b"test", b"opt") # Basic check
+        db.put(b"test", b"opt")  # Basic check
         assert db.get(b"test") == b"opt"
         db.close()
+
 
 def test_create_if_missing_false(db_path_factory):
     """Test create_if_missing: False specifically."""
     non_existent_path = db_path_factory("non_existent_db")
-    with pytest.raises(RuntimeError): # Expect error as DB doesn't exist
+    with pytest.raises(RuntimeError):  # Expect error as DB doesn't exist
         RockStore(non_existent_path, options={"create_if_missing": False})
-    
+
     # Create the DB first
     RockStore(non_existent_path, options={"create_if_missing": True}).close()
     # Now open with create_if_missing: False should work
     db = RockStore(non_existent_path, options={"create_if_missing": False})
     db.close()
 
+
 def test_invalid_options(db_path_factory):
     """Test invalid option values."""
     invalid_options_list = [
         {"compression_type": "invalid_compression"},
         {"write_buffer_size": -100},
-        {"max_open_files": "not_an_int"}
+        {"max_open_files": "not_an_int"},
     ]
     for i, opts in enumerate(invalid_options_list):
         current_db_path = db_path_factory(f"invalid_opts_{i}")
         with pytest.raises(ValueError):
             RockStore(current_db_path, options=opts)
 
+
 def test_per_operation_options(db_path):
     """Test per-operation sync and fill_cache options."""
     db = RockStore(db_path)
-    
+
     # Test put with sync=True
     db.put(b"sync_key", b"sync_value", sync=True)
     assert db.get(b"sync_key") == b"sync_value"
@@ -146,12 +136,13 @@ def test_per_operation_options(db_path):
     # Test get_all with fill_cache=False
     all_data_no_cache = db.get_all(fill_cache=False)
     assert all_data_no_cache[b"sync_key"] == b"sync_value"
-    
+
     # Test delete with sync=True
     db.delete(b"sync_key", sync=True)
     assert db.get(b"sync_key") is None
-    
+
     db.close()
+
 
 def test_read_only_mode(db_path_factory):
     writable_db_path = db_path_factory("read_only_test_db")
@@ -164,7 +155,7 @@ def test_read_only_mode(db_path_factory):
     ro_db = RockStore(writable_db_path, options={"read_only": True})
     assert ro_db.get(b"key1") == b"value1"
     assert ro_db.get(b"key2") == b"value2"
-    
+
     # Test that write operations fail
     with pytest.raises(IOError):
         ro_db.put(b"new_key", b"new_value")
@@ -175,183 +166,195 @@ def test_read_only_mode(db_path_factory):
 
     # Test opening a non-existent DB in read-only mode (should fail)
     non_existent_ro_path = db_path_factory("non_existent_ro_db")
-    with pytest.raises(RuntimeError): # RocksDB open_for_read_only fails if DB doesn't exist
+    with pytest.raises(
+        RuntimeError
+    ):  # RocksDB open_for_read_only fails if DB doesn't exist
         RockStore(non_existent_ro_path, options={"read_only": True})
+
 
 def test_fixed_prefix_extractor(db_path):
     """Basic test to ensure fixed prefix extractor option doesn't crash."""
     # Deeper testing of prefix extractor benefits requires specific data patterns and
     # potentially specific RocksDB metrics, which is complex for a simple unit test.
     # This test mainly ensures the option can be set and the DB operates.
-    db_opts = {"fixed_prefix_len": 3, "bloom_filter_bits_per_key":10}
+    db_opts = {"fixed_prefix_len": 3, "bloom_filter_bits_per_key": 10}
     with RockStore(db_path, options=db_opts) as db:
         db.put(b"abcKey1", b"val1")
-        db.put(b"abckey2", b"val2") # Note: case sensitivity matters for prefix
+        db.put(b"abckey2", b"val2")  # Note: case sensitivity matters for prefix
         db.put(b"xyzKey3", b"val3")
         assert db.get(b"abcKey1") == b"val1"
         assert db.get(b"xyzKey3") == b"val3"
 
-# It's hard to deterministically test increase_parallelism and block_cache effects 
+
+# It's hard to deterministically test increase_parallelism and block_cache effects
 # in unit tests without specific benchmarks or internal metrics access.
 # We primarily test that these options can be set without errors during DB opening.
+
 
 def test_increase_parallelism_option(db_path):
     with RockStore(db_path, options={"increase_parallelism_threads": 4}) as db:
         db.put(b"test", b"parallel")
         assert db.get(b"test") == b"parallel"
 
+
 def test_block_cache_option(db_path):
     with RockStore(db_path, options={"block_cache_size_mb": 16}) as db:
         db.put(b"test", b"cache")
         assert db.get(b"test") == b"cache"
-    
+
     db.close()
+
 
 def test_get_range_basic(db_path):
     """Test basic range queries."""
     db = RockStore(db_path)
-    
+
     # Add test data
     test_data = {
         b"user:001": b"Alice",
-        b"user:002": b"Bob", 
+        b"user:002": b"Bob",
         b"user:003": b"Charlie",
         b"product:001": b"Laptop",
         b"product:002": b"Mouse",
         b"order:001": b"Order1",
-        b"order:002": b"Order2"
+        b"order:002": b"Order2",
     }
-    
+
     for key, value in test_data.items():
         db.put(key, value)
-    
+
     # Test full range (no limits)
     all_data = db.get_range()
     assert len(all_data) == 7
-    
+
     # Test with limit
     limited = db.get_range(limit=3)
     assert len(limited) == 3
-    
+
     # Test range with start and end keys
-    user_range = db.get_range(start_key=b"user:", end_key=b"user:\xFF")
+    user_range = db.get_range(start_key=b"user:", end_key=b"user:\xff")
     assert len(user_range) == 3
     assert b"user:001" in user_range
     assert b"user:002" in user_range
     assert b"user:003" in user_range
     assert b"product:001" not in user_range
-    
+
     # Test range with start key only
     from_user = db.get_range(start_key=b"user:")
-    assert len(from_user) == 3  # Only user keys should be included (alphabetically last)
-    
+    assert (
+        len(from_user) == 3
+    )  # Only user keys should be included (alphabetically last)
+
     db.close()
+
 
 def test_pagination_scenario(db_path):
     """Test pagination with large dataset scenario."""
     db = RockStore(db_path)
-    
+
     # Create a larger dataset to test pagination
     total_records = 1000
     for i in range(total_records):
         key = f"key:{i:06d}".encode()  # Zero-padded for proper sorting
         value = f"value_{i}".encode()
         db.put(key, value)
-    
+
     # Test pagination - get 100 records at a time
     batch_size = 100
     all_keys_paginated = []
     start_key = None
-    
+
     while True:
         batch = db.get_range(start_key=start_key, limit=batch_size)
         if not batch:
             break
-            
+
         batch_keys = sorted(batch.keys())
         all_keys_paginated.extend(batch_keys)
-        
+
         # Get next start key for pagination
         last_key = batch_keys[-1]
         # Simple way to get next key: append a null byte
-        start_key = last_key + b'\x00'
-    
+        start_key = last_key + b"\x00"
+
     # Verify we got all records
     assert len(all_keys_paginated) == total_records
-    
+
     # Verify they're in order
     expected_keys = [f"key:{i:06d}".encode() for i in range(total_records)]
     assert all_keys_paginated == expected_keys
-    
+
     db.close()
+
 
 def test_iterate_range_generator(db_path):
     """Test the memory-efficient iterate_range generator."""
     db = RockStore(db_path)
-    
+
     # Add test data
     test_data = {
         b"a001": b"value1",
-        b"a002": b"value2", 
+        b"a002": b"value2",
         b"a003": b"value3",
         b"b001": b"value4",
         b"b002": b"value5",
     }
-    
+
     for key, value in test_data.items():
         db.put(key, value)
-    
+
     # Test iterating all data
     all_items = list(db.iterate_range())
     assert len(all_items) == 5
-    
+
     # Test iterating specific range
-    a_items = list(db.iterate_range(start_key=b"a", end_key=b"a\xFF"))
+    a_items = list(db.iterate_range(start_key=b"a", end_key=b"a\xff"))
     assert len(a_items) == 3
-    
+
     # Verify the generator returns tuples
     for key, value in a_items:
         assert isinstance(key, bytes)
         assert isinstance(value, bytes)
         assert key.startswith(b"a")
-    
+
     # Test that it's truly a generator (memory efficient)
-    gen = db.iterate_range(start_key=b"a", end_key=b"a\xFF")
+    gen = db.iterate_range(start_key=b"a", end_key=b"a\xff")
     first_item = next(gen)
     assert first_item == (b"a001", b"value1")
-    
+
     db.close()
+
 
 def test_range_query_edge_cases(db_path):
     """Test edge cases for range queries."""
     db = RockStore(db_path)
-    
+
     # Test on empty database
     empty_range = db.get_range()
     assert len(empty_range) == 0
-    
+
     empty_iter = list(db.iterate_range())
     assert len(empty_iter) == 0
-    
+
     # Add some data
     db.put(b"key1", b"value1")
     db.put(b"key2", b"value2")
-    
+
     # Test range with non-existent start key
     result = db.get_range(start_key=b"key0", end_key=b"key1")
     assert len(result) == 1
     assert b"key1" in result
-    
-    # Test range with non-existent end key  
+
+    # Test range with non-existent end key
     result = db.get_range(start_key=b"key1", end_key=b"key9")
     assert len(result) == 2
-    
+
     # Test range where start > end (should return empty)
     result = db.get_range(start_key=b"key2", end_key=b"key1")
     assert len(result) == 0
-    
+
     # Test limit of 0
     result = db.get_range(limit=0)
     assert len(result) == 0
-    
-    db.close() 
+
+    db.close()

@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=74.0", "wheel", "cffi>=2.0.0"]
+requires = ["setuptools>=64.0", "wheel", "cffi>=1.15.0", "setuptools_scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "rockstore"
-version = "0.1.2"
+dynamic = ["version"]
 description = "A lightweight Python wrapper for RocksDB using CFFI"
 readme = "README.md"
 authors = [
@@ -25,16 +25,30 @@ classifiers = [
     "Topic :: Database",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-keywords = ["rocksdb", "database", "key-value", "cffi", "embedded"]
-dependencies = [
-    "cffi>=2.0.0",
+keywords = [
+    "rocksdb", 
+    "database", 
+    "key-value", 
+    "cffi", 
+    "embedded", 
+    "persistent", 
+    "storage", 
+    "nosql", 
+    "fast", 
+    "performance", 
+    "batch-write",
+    "python-wrapper"
 ]
-requires-python = ">=3.11"
+dependencies = [
+    "cffi>=1.15.0",
+]
+requires-python = ">=3.8"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-benchmark>=4.0.0",
+    "pytest-cov>=4.0.0",
 ]
 
 [project.urls]
@@ -52,6 +66,9 @@ where = ["src"]
 [tool.setuptools.package-data]
 rockstore = ["py.typed"]
 
+[tool.setuptools_scm]
+write_to = "src/rockstore/_version.py"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
@@ -64,4 +81,19 @@ target-version = ["py38"]
 
 [tool.isort]
 profile = "black"
-line_length = 88 
+line_length = 88
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = ["tests/*", "setup.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+show_missing = true

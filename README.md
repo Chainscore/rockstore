@@ -1,5 +1,11 @@
 # RockStore
 
+[![PyPI version](https://badge.fury.io/py/rockstore.svg)](https://badge.fury.io/py/rockstore)
+[![Python Versions](https://img.shields.io/pypi/pyversions/rockstore.svg)](https://pypi.org/project/rockstore/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Tests](https://github.com/chainscore/rockstore/actions/workflows/test.yml/badge.svg)](https://github.com/chainscore/rockstore/actions/workflows/test.yml)
+
 A lightweight Python wrapper for RocksDB using CFFI.
 
 ## Overview
@@ -98,6 +104,27 @@ with open_database('/path/to/database') as db:
     all_data = db.get_all()
     for key, value in all_data.items():
         print(f"{key} -> {value}")
+```
+
+### Batch Operations
+
+For maximum performance when writing multiple records, use `write_batch`. It is significantly faster (4x+) than individual `put` operations and guarantees atomicity (all or nothing).
+
+```python
+with open_database('/path/to/database') as db:
+    # Prepare batch data (list of tuples)
+    batch_data = [
+        (b'key1', b'value1'),
+        (b'key2', b'value2'),
+        (b'key3', b'value3')
+    ]
+    
+    # Atomic write
+    db.write_batch(batch_data)
+    
+    # Atomic delete
+    keys_to_delete = [b'key1', b'key2']
+    db.delete_batch(keys_to_delete)
 ```
 
 ### Range Queries and Pagination
@@ -274,7 +301,11 @@ RockStore(path, options=None)
 - `get(key: bytes, fill_cache: bool = True) -> bytes | None` - Retrieve binary data
 - `delete(key: bytes, sync: bool = False)` - Delete binary data
 
-**Bulk Operations:**
+**Batch Operations:**
+- `write_batch(operations: list[tuple[bytes, bytes]], sync: bool = False)` - Atomically write multiple key-value pairs
+- `delete_batch(keys: list[bytes], sync: bool = False)` - Atomically delete multiple keys
+
+**Bulk Read Operations:**
 - `get_all(fill_cache: bool = True) -> dict[bytes, bytes]` - Get all key-value pairs (loads into memory)
 - `get_range(start_key: bytes = None, end_key: bytes = None, limit: int = None, fill_cache: bool = True) -> dict[bytes, bytes]` - Get range of key-value pairs with pagination support
 - `iterate_range(start_key: bytes = None, end_key: bytes = None, fill_cache: bool = True) -> Iterator[tuple[bytes, bytes]]` - Memory-efficient iterator over key-value pairs
@@ -316,4 +347,13 @@ MIT License - see LICENSE file for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. 
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+<p align="center">
+  <strong>Developed by Chainscore Labs</strong><br>
+  <a href="https://chainscore.finance">
+    <img src="https://www.chainscorelabs.com/en/opengraph-image" alt="Chainscore Labs" width="100%">
+  </a>
+</p> 
