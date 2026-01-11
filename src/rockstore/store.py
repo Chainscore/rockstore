@@ -54,14 +54,25 @@ class RockStore:
     LZ4HC_COMPRESSION = 5
     ZSTD_COMPRESSION = 7
 
+    _ffi = FFI()
+    _lib = None
+    _c_defs_loaded = False
+
     def __init__(self, path: str, options: dict = None):
-        self.ffi = FFI()
+        self.ffi = self._ffi
+
+        if not self._c_defs_loaded:
+            self._define_c_interface()
+            RockStore._c_defs_loaded = True
+
+        if self._lib is None:
+            self._load_library()
+
+        self.lib = self._lib
         self.path = path.encode("utf-8")
         self._db_options_dict = options if options else {}
         self.is_read_only = self._db_options_dict.get("read_only", False)
-
-        self._define_c_interface()
-        self._load_library()
+        self._active_iterators = set()
 
         self.db_options = self.lib.rocksdb_options_create()
         self._configure_db_options()
@@ -258,13 +269,13 @@ class RockStore:
                 matching_libs = glob.glob(lib_name)
                 for lib_path in sorted(matching_libs, reverse=True):  # Use newest version
                     try:
-                        self.lib = self.ffi.dlopen(lib_path)
+                        RockStore._lib = self.ffi.dlopen(lib_path)
                         return
                     except OSError as e:
                         errors.append(f"Failed to load {lib_path}: {str(e)}")
             else:
                 try:
-                    self.lib = self.ffi.dlopen(lib_name)
+                    RockStore._lib = self.ffi.dlopen(lib_name)
                     return
                 except OSError as e:
                     errors.append(f"Failed to load {lib_name}: {str(e)}")
@@ -356,17 +367,22 @@ class RockStore:
             roptions = self.lib.rocksdb_readoptions_create()
             self.lib.rocksdb_readoptions_set_fill_cache(roptions, 0)
         iterator = self.lib.rocksdb_create_iterator(self.db, roptions)
-        self.lib.rocksdb_iter_seek_to_first(iterator)
-        keylen = self.ffi.new("size_t*")
-        vallen = self.ffi.new("size_t*")
-        while self.lib.rocksdb_iter_valid(iterator) == 1:
-            key_ptr = self.lib.rocksdb_iter_key(iterator, keylen)
-            value_ptr = self.lib.rocksdb_iter_value(iterator, vallen)
-            key = bytes(self.ffi.buffer(key_ptr, keylen[0]))
-            value = bytes(self.ffi.buffer(value_ptr, vallen[0]))
-            result[key] = value
-            self.lib.rocksdb_iter_next(iterator)
-        self.lib.rocksdb_iter_destroy(iterator)
+        self._active_iterators.add(iterator)
+        try:
+            self.lib.rocksdb_iter_seek_to_first(iterator)
+            keylen = self.ffi.new("size_t*")
+            vallen = self.ffi.new("size_t*")
+            while self.lib.rocksdb_iter_valid(iterator) == 1:
+                key_ptr = self.lib.rocksdb_iter_key(iterator, keylen)
+                value_ptr = self.lib.rocksdb_iter_value(iterator, vallen)
+                key = bytes(self.ffi.buffer(key_ptr, keylen[0]))
+                value = bytes(self.ffi.buffer(value_ptr, vallen[0]))
+                result[key] = value
+                self.lib.rocksdb_iter_next(iterator)
+        finally:
+            if iterator in self._active_iterators:
+                self.lib.rocksdb_iter_destroy(iterator)
+                self._active_iterators.discard(iterator)
         if not fill_cache:
             self.lib.rocksdb_readoptions_destroy(roptions)
         return result
@@ -416,35 +432,40 @@ class RockStore:
             self.lib.rocksdb_readoptions_set_fill_cache(roptions, 0)
 
         iterator = self.lib.rocksdb_create_iterator(self.db, roptions)
+        self._active_iterators.add(iterator)
 
-        # Position iterator at start_key or beginning
-        if start_key is not None:
-            self.lib.rocksdb_iter_seek(iterator, start_key, len(start_key))
-        else:
-            self.lib.rocksdb_iter_seek_to_first(iterator)
+        try:
+            # Position iterator at start_key or beginning
+            if start_key is not None:
+                self.lib.rocksdb_iter_seek(iterator, start_key, len(start_key))
+            else:
+                self.lib.rocksdb_iter_seek_to_first(iterator)
 
-        keylen = self.ffi.new("size_t*")
-        vallen = self.ffi.new("size_t*")
+            keylen = self.ffi.new("size_t*")
+            vallen = self.ffi.new("size_t*")
 
-        while self.lib.rocksdb_iter_valid(iterator) == 1:
-            # Check limit
-            if limit is not None and count >= limit:
-                break
+            while self.lib.rocksdb_iter_valid(iterator) == 1:
+                # Check limit
+                if limit is not None and count >= limit:
+                    break
 
-            key_ptr = self.lib.rocksdb_iter_key(iterator, keylen)
-            value_ptr = self.lib.rocksdb_iter_value(iterator, vallen)
-            key = bytes(self.ffi.buffer(key_ptr, keylen[0]))
-            value = bytes(self.ffi.buffer(value_ptr, vallen[0]))
+                key_ptr = self.lib.rocksdb_iter_key(iterator, keylen)
+                value_ptr = self.lib.rocksdb_iter_value(iterator, vallen)
+                key = bytes(self.ffi.buffer(key_ptr, keylen[0]))
+                value = bytes(self.ffi.buffer(value_ptr, vallen[0]))
 
-            # Check end_key boundary (inclusive)
-            if end_key is not None and key > end_key:
-                break
+                # Check end_key boundary (inclusive)
+                if end_key is not None and key > end_key:
+                    break
 
-            result[key] = value
-            count += 1
-            self.lib.rocksdb_iter_next(iterator)
+                result[key] = value
+                count += 1
+                self.lib.rocksdb_iter_next(iterator)
+        finally:
+            if iterator in self._active_iterators:
+                self.lib.rocksdb_iter_destroy(iterator)
+                self._active_iterators.discard(iterator)
 
-        self.lib.rocksdb_iter_destroy(iterator)
         if not fill_cache:
             self.lib.rocksdb_readoptions_destroy(roptions)
 
@@ -482,6 +503,7 @@ class RockStore:
             self.lib.rocksdb_readoptions_set_fill_cache(roptions, 0)
 
         iterator = self.lib.rocksdb_create_iterator(self.db, roptions)
+        self._active_iterators.add(iterator)
 
         try:
             # Position iterator at start_key or beginning
@@ -507,7 +529,9 @@ class RockStore:
                 self.lib.rocksdb_iter_next(iterator)
 
         finally:
-            self.lib.rocksdb_iter_destroy(iterator)
+            if iterator in self._active_iterators:
+                self.lib.rocksdb_iter_destroy(iterator)
+                self._active_iterators.discard(iterator)
             if not fill_cache:
                 self.lib.rocksdb_readoptions_destroy(roptions)
 
@@ -524,6 +548,12 @@ class RockStore:
             self.lib.rocksdb_writeoptions_destroy(woptions)
 
     def close(self):
+        if hasattr(self, "_active_iterators"):
+            for it in list(self._active_iterators):
+                if self.lib:
+                    self.lib.rocksdb_iter_destroy(it)
+            self._active_iterators.clear()
+
         if hasattr(self, "db") and self.db:
             self.lib.rocksdb_close(self.db)
             self.db = None
