@@ -100,6 +100,27 @@ with open_database('/path/to/database') as db:
         print(f"{key} -> {value}")
 ```
 
+### Batch Operations
+
+For maximum performance when writing multiple records, use `write_batch`. It is significantly faster (4x+) than individual `put` operations and guarantees atomicity (all or nothing).
+
+```python
+with open_database('/path/to/database') as db:
+    # Prepare batch data (list of tuples)
+    batch_data = [
+        (b'key1', b'value1'),
+        (b'key2', b'value2'),
+        (b'key3', b'value3')
+    ]
+    
+    # Atomic write
+    db.write_batch(batch_data)
+    
+    # Atomic delete
+    keys_to_delete = [b'key1', b'key2']
+    db.delete_batch(keys_to_delete)
+```
+
 ### Range Queries and Pagination
 
 For large databases, use range queries with pagination instead of `get_all()`:
@@ -274,7 +295,11 @@ RockStore(path, options=None)
 - `get(key: bytes, fill_cache: bool = True) -> bytes | None` - Retrieve binary data
 - `delete(key: bytes, sync: bool = False)` - Delete binary data
 
-**Bulk Operations:**
+**Batch Operations:**
+- `write_batch(operations: list[tuple[bytes, bytes]], sync: bool = False)` - Atomically write multiple key-value pairs
+- `delete_batch(keys: list[bytes], sync: bool = False)` - Atomically delete multiple keys
+
+**Bulk Read Operations:**
 - `get_all(fill_cache: bool = True) -> dict[bytes, bytes]` - Get all key-value pairs (loads into memory)
 - `get_range(start_key: bytes = None, end_key: bytes = None, limit: int = None, fill_cache: bool = True) -> dict[bytes, bytes]` - Get range of key-value pairs with pagination support
 - `iterate_range(start_key: bytes = None, end_key: bytes = None, fill_cache: bool = True) -> Iterator[tuple[bytes, bytes]]` - Memory-efficient iterator over key-value pairs
